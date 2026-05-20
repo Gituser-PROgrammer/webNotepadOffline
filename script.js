@@ -9,49 +9,12 @@ document.addEventListener("keydown", function (e) {
 });
 
 // ================================
-// SPELLCHECK TOGGLE
-// ================================
-document.querySelector("#spellCheck").addEventListener("change", function () {
-  document.getElementById("editor").spellcheck = this.checked;
-});
-
-// ================================
-// CHARACTER COUNT (no spaces)
-// ================================
-document.getElementById("editor").addEventListener("input", function () {
-  document.getElementById("chars").innerText = this.value.replace(
-    /\s/g,
-    "",
-  ).length;
-});
-
-// ================================
-// MARKDOWN PREVIEW TOGGLE
+// ELEMENT REFERENCES
 // ================================
 const editor = document.getElementById("editor");
 const preview = document.getElementById("preview");
 const toggleBtn = document.querySelector("#previewBtn");
 
-let previewMode = false;
-
-toggleBtn.addEventListener("click", () => {
-  previewMode = !previewMode;
-
-  if (previewMode) {
-    preview.innerHTML = marked.parse(editor.value);
-    editor.hidden = true;
-    preview.hidden = false;
-    toggleBtn.textContent = "Edit Mode";
-  } else {
-    editor.hidden = false;
-    preview.hidden = true;
-    toggleBtn.textContent = "Preview Markdown";
-  }
-});
-
-// ================================
-// FILE OPEN LOGIC
-// ================================
 const fileOpener = document.getElementById("fileOpener");
 const openBtn = document.getElementById("openBtn");
 
@@ -59,14 +22,77 @@ const saveDialog = document.getElementById("saveDialog");
 const fileNameInput = document.getElementById("fileNameInput");
 const confirmSave = document.getElementById("confirmSave");
 
+const chars = document.getElementById("chars");
+
 let currentFileName = "untitled.txt";
 
+// ================================
+// LOCAL STORAGE AUTOSAVE
+// ================================
+
+// Load saved content
+const savedContent = localStorage.getItem("web-notepad-content");
+
+if (savedContent !== null) {
+  editor.value = savedContent;
+}
+
+// Save while typing
+editor.addEventListener("input", () => {
+  localStorage.setItem(
+    "web-notepad-content",
+    editor.value,
+  );
+
+  // Character count update
+  chars.innerText = editor.value.replace(/\s/g, "").length;
+});
+
+// Initial character count
+chars.innerText = editor.value.replace(/\s/g, "").length;
+
+// ================================
+// SPELLCHECK TOGGLE
+// ================================
+document
+  .querySelector("#spellCheck")
+  .addEventListener("change", function () {
+    editor.spellcheck = this.checked;
+  });
+
+// ================================
+// MARKDOWN PREVIEW TOGGLE
+// ================================
+let previewMode = false;
+
+toggleBtn.addEventListener("click", () => {
+  previewMode = !previewMode;
+
+  if (previewMode) {
+    preview.innerHTML = marked.parse(editor.value);
+
+    editor.hidden = true;
+    preview.hidden = false;
+
+    toggleBtn.textContent = "Edit Mode";
+  } else {
+    editor.hidden = false;
+    preview.hidden = true;
+
+    toggleBtn.textContent = "Preview Markdown";
+  }
+});
+
+// ================================
+// FILE OPEN LOGIC
+// ================================
 openBtn.addEventListener("click", () => {
   fileOpener.click();
 });
 
 fileOpener.addEventListener("change", (e) => {
   const file = e.target.files[0];
+
   if (!file) return;
 
   currentFileName = file.name;
@@ -76,7 +102,14 @@ fileOpener.addEventListener("change", (e) => {
 
   reader.onload = function (event) {
     editor.value = event.target.result;
-    document.getElementById("chars").innerText = editor.value.replace(
+
+    // Save opened file into localStorage too
+    localStorage.setItem(
+      "web-notepad-content",
+      editor.value,
+    );
+
+    chars.innerText = editor.value.replace(
       /\s/g,
       "",
     ).length;
@@ -84,11 +117,12 @@ fileOpener.addEventListener("change", (e) => {
 
   reader.readAsText(file);
 
-  fileOpener.value = ""; // allow reopening same file
+  // allow reopening same file
+  fileOpener.value = "";
 });
 
 // ================================
-// SAVE LOGIC (DIALOG CONFIRM)
+// SAVE LOGIC
 // ================================
 confirmSave.addEventListener("click", (e) => {
   e.preventDefault();
@@ -101,20 +135,39 @@ confirmSave.addEventListener("click", (e) => {
 
   const content = editor.value;
 
-  const blob = new Blob([content], {
-    type: "application/octet-stream",
-  });
+  try {
+    // Main download method
+    const blob = new Blob([content], {
+      type: "text/plain;charset=utf-8",
+    });
 
-  const url = URL.createObjectURL(blob);
+    const url = URL.createObjectURL(blob);
 
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = fileName;
-  a.click();
+    const a = document.createElement("a");
 
-  URL.revokeObjectURL(url);
+    a.style.display = "none";
+    a.href = url;
+    a.download = fileName;
 
-  currentFileName = fileName; // update if renamed
+    document.body.appendChild(a);
+
+    a.click();
+
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 1000);
+
+    currentFileName = fileName;
+  } catch (err) {
+    // Fallback if download fails
+    alert(
+      "Download failed. Your notes are still safely stored offline in localStorage.",
+    );
+
+    console.error(err);
+  }
+
   saveDialog.close();
 });
 
@@ -127,14 +180,23 @@ document
     saveDialog.showModal();
   });
 
+// ================================
+// MOBILE DETECTION
+// ================================
 function isMobilePhone() {
-  return /iPhone|Android.+Mobile|Windows Phone/i.test(navigator.userAgent);
+  return /iPhone|Android.+Mobile|Windows Phone/i.test(
+    navigator.userAgent,
+  );
 }
 
 if (isMobilePhone()) {
   console.log("Phone user detected.");
+
   const randNum = Math.floor(Math.random() * 2) + 1;
+
   if (randNum === 1) {
-    alert("Landscape Mode is recommended for mobile devices");
+    alert(
+      "Landscape Mode is recommended for mobile devices",
+    );
   }
 }
