@@ -1,5 +1,4 @@
 const ASSETS = [
-  "./",
   "./index.html",
   "./favicon.png",
   "./favicon128.png",
